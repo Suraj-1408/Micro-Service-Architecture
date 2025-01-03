@@ -1,0 +1,65 @@
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up</title>
+</head>
+<body>
+  <h1>Sign Up</h1>
+  <form id="signup-form" action="/signUp" method="POST">
+    <label for="student_name">Name:</label>
+    <input type="text" id="student_name" name="student_name" required>
+    <br>
+
+    <label for="roll_no">Roll No:</label>
+    <input type="number" id="roll_no" name="roll_no" required>
+    <br>
+
+    <label for="class">Class:</label>
+    <input type="text" id="class" name="class" required>
+    <br>
+
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" required>
+    <br>
+
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required>
+    <br>
+
+    <button type="submit">Sign Up</button>
+  </form>
+
+  <script>
+    document.getElementById('signup-form').addEventListener('submit', function(event) {
+      event.preventDefault(); // Prevent form submission for now
+
+      // Collect form data
+      const formData = {
+        student_name: document.getElementById('student_name').value,
+        roll_no: document.getElementById('roll_no').value,
+        class: document.getElementById('class').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      };
+
+      // Send form data to backend (UserService) to store in the database
+      fetch('/signUp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert('User registered successfully!');
+        // Optionally, redirect to login page or show success message
+      })
+      .catch(error => {
+        console.error('Error during sign up:', error);
+        alert('Error occurred during sign up.');
+      });
+    });
+  </script>
+</body>
+</html>

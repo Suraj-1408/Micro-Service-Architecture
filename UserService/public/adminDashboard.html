@@ -1,0 +1,330 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/style/styles.css">
+
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">File Service Admin</div>
+            <ul class="nav-links">
+                <li><a href="#file-management">File Management</a></li>
+                <li><a href="#user-management">User Management</a></li>
+                <li><a href="#settings">Settings</a></li>
+            </ul>
+            <button onclick="logout()" class="logout-btn">Logout</button>
+        </nav>
+    </header>
+
+    <section id="file-management">
+        <h2>File Management</h2>
+        <div class="file-create-section">
+            <h3>Upload New Shared File</h3>
+            <form id="create-file-form" action="/api/files/upload" method="post" enctype="multipart/form-data">
+                <input type="file" id="file-input" name="file" required>
+                <button id="upload-file-btn" type="submit">Upload File</button>
+            </form>
+        </div>
+        <div class="file-list-section">
+            <h3>Shared Files</h3>
+            <ul id="file-list">
+                <!-- Dynamically populate the shared files -->
+            </ul>
+        </div>
+    </section>
+
+    <section id="user-management">
+        <h2>User Management</h2>
+        <div class="user-list">
+            <h3>Users with Access</h3>
+            <table border="1" id="user-table" style="width: 100%; text-align: left; border-collapse: collapse;">
+              <thead>
+                <tr>
+                  <th style="padding: 10px;">Name</th>
+                  <th style="padding: 10px;">Email</th>
+                  <th style="padding: 10px;">Access</th>
+                </tr>
+              </thead>
+              <tbody id="user-list">
+                <!-- User rows will be dynamically added here -->
+              </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2024 File Service. All Rights Reserved.</p>
+    </footer>
+
+<script>
+// Select the form element and prevent its default submit action
+document.getElementById('create-file-form').addEventListener('submit', function(event) {
+  event.preventDefault();
+
+  // Get the file from the file input
+  const fileInput = document.getElementById('file-input');
+  const file = fileInput.files[0];
+
+  // Show an alert if no file is selected
+  if (!file) {
+    alert('Please select a file to upload.');
+    return;
+  }
+
+  // Create a FormData object and append the selected file
+  const formData = new FormData();
+  formData.append('file', file);
+
+
+  function handlePermitButtonState(shouldActivate) {
+    const permitButton = document.querySelector('.permit-access-button');
+    permitButton.disabled = !shouldActivate; // Enable if shouldActivate is true
+  }
+
+
+
+  fetch('/api/files/upload', {
+  method: 'POST',
+  body: formData,
+  })
+
+  .then(response => response.json())
+  .then(data => {
+    // Check if there's a success message or an error
+    if (data.message) {
+      alert(data.message);  // Show success message
+      
+      // Check if the permit button should be activated
+      if (data.shouldActivatePermit) {
+        handlePermitButtonState(true);  // Enable permit button
+      }
+
+      // Refresh the list of shared files
+      loadSharedFiles();
+    } else if (data.error) {
+      alert(data.error);    // Show error alert
+    }
+   })
+  
+  .catch(error => {
+    console.error('Error uploading file:', error.message || error);
+    alert('An error occurred while uploading the file');
+  });
+
+});
+
+
+
+
+function loadSharedFiles() {
+  fetch('/api/files/shared-files')
+    .then(function parseResponse(response) {
+        console.log('Raw response:', response);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(function handleData(data){
+      console.log('Parsed data:', data); // Log the parsed data
+
+      const fileList = document.getElementById('file-list');
+      // Check if fileList element exists in the DOM
+      if (!fileList) {
+        console.error('Error: file-list element not found in DOM.');
+        return;
+      }
+  
+      fileList.innerHTML = '';
+      console.log('Data received:', data);
+     
+      // Check if 'files' is present in the response data and is an array
+      if (!Array.isArray(data.files)) {
+        console.error('Error: Unexpected response format. Expected "files" array.');
+        fileList.innerHTML = `<li>Error: Unexpected response format.</li>`;
+        return;
+      }
+
+      data.files.forEach(file => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${file.filename}</span>
+          <button onclick="manageFile('${file.filename}')">Manage</button>
+        `;
+        fileList.appendChild(li);
+      });
+    })
+
+    .catch(function handleError(error)  {
+      console.error('Error loading files:', error);
+      document.getElementById('file-list').innerHTML = `<li>Error loading files. Please try again later.</li>`;
+      
+      alert(`Error loading files: ${error.message}`);
+        console.log("Error details:", {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+        });
+    
+    });
+}
+
+
+function handleError(error) {
+    console.error('Error loading files:', error);
+    setTimeout(loadSharedFiles, 5000);  // Retry after 5 seconds
+}
+
+function manageFile(filename) {
+    // Logic to manage the file (e.g., lock rows, update permissions)
+    alert(`Managing file: ${filename}`);
+}
+
+// Initially load the shared files
+loadSharedFiles();
+
+//function for loggingout.
+function logout(){
+    //redirecting to logout endpoint in admin
+    window.location.href = '/admin/logout';
+    console.log('Logged out Successfuly.');
+}
+</script>
+
+
+<script>
+
+function permitAccess(email, studentId, sharedFileId, fileId) {
+  console.log(`Granting access: email=${email}, studentId=${studentId}, fileId=${fileId}, sharedFileId=${sharedFileId}`);
+
+  if (!studentId || !fileId || !sharedFileId) {
+    console.error(`Invalid data: studentId=${studentId}, fileId=${fileId}, sharedFileId=${sharedFileId}`);
+    alert('Failed to permit access: Missing student, file, or shared file information.');
+    return;
+  }
+
+  fetch(`/admin-dashboard/api/permit-access`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ studentId, sharedFileId, fileId }),  // Send studentId, sharedFileId, and fileId
+  })
+  .then(response => {
+    console.log('Response status:', response.status);
+    if (!response.ok) {
+       throw new Error(response.statusText);
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Response data:', data);
+    
+    if(data.success && data.message === 'Access already granted'){
+      alert(`Access already granted to ${email}`);
+      console.log(`Access already granted to ${email}`);
+     
+    }
+    else if (data.success) {  // Assuming the backend sends a 'success' field
+      alert(`Access granted to ${email}`);
+      console.log(`Access granted to ${email}`);
+    } else {
+      console.error(`Failed to permit access for ${email}`);
+      alert(`Failed to grant access to ${email}`);
+    }
+
+    const button = document.querySelector(`[data-email='${email}']`);
+    button.disabled = true;  // Disable the button after granting access
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred while granting access. Please try again later.');
+  });
+}
+
+
+// Loading User Dynamically.
+fetch('/admin-dashboard')
+  .then(response => response.json())
+  .then(users => {
+    console.log('API Response.', users);
+
+    const userList = document.getElementById('user-list');
+
+    if (users.length === 0) {
+      userList.innerHTML = `<tr><td colspan="3">No users found.</td></tr>`;
+      return;
+    }
+
+    userList.innerHTML = ''; // Clear existing content
+    
+    users.forEach(user => {
+      //const hasAccess = user.can_access;   //used to know if the user is already permitted with access
+      console.log('User Data:', user); // Log each user to debug
+
+
+
+      // Log the data for debugging purposes
+      console.log(`Creating button for: 
+      email=${user.email}, 
+      studentId=${user.stud_id}, 
+      fileId=${user.file_id}, 
+      sharedFileId=${user.id}`);
+
+      if (!user.file_id || !user.id) {
+          console.log("Missing fields in user data:", user);
+      }
+
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td style="padding: 10px;">${user.student_name}</td>
+        <td style="padding: 10px;">${user.email}</td>
+        <td style="padding: 10px;">
+          
+          <button data-email="${user.email}" 
+                  data-student-id="${user.stud_id || ''}" 
+                  data-file-id="${user.file_id  ||  22 }"       //harcoded it.
+                  data-shared-file-id="${user.id ||  22 }"      //harcoded it.
+  
+                  class="permit-access-button"  
+                  ${user.can_access ? 'disabled' : ''}>
+            Permit
+          </button>
+        </td>
+      `;
+      userList.appendChild(row);
+    });
+
+    // Event listener for dynamically added permit access buttons
+    document.querySelectorAll('.permit-access-button').forEach(button => {
+      button.addEventListener('click', () => {
+        console.log('Button clicked!', button.dataset); // Debug log to confirm click event
+
+        const email = button.dataset.email;
+        const studentId = button.dataset.studentId;
+        const fileId = button.dataset.fileId;
+        const sharedFileId = button.dataset.sharedFileId; // Retrieve sharedFileId from the button dataset
+
+        if (!studentId || fileId ==='N/A' || sharedFileId ==='N/A') {
+          alert(`Cannot permit access: Missing data for ${email}`);
+          return;
+        }
+        
+	    permitAccess(email, studentId, sharedFileId, fileId);
+      });
+    });
+  })
+  .catch(err => {
+    console.error('Error fetching users:', err.message);
+    document.getElementById('user-list').innerHTML = `
+      <tr><td colspan="3">Error loading users.</td></tr>`;
+  });
+
+</script>
+
+</body>
+</html>

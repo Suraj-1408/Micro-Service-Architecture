@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Dashboard</title>
+  <style>
+    /* Add some basic styling for better UX */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .file-list-section {
+      margin-top: 20px;
+    }
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    li {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    button {
+      margin: 0 5px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .view-btn {
+      background-color: #5cb85c;
+      color: white;
+    }
+    .edit-btn {
+      background-color: #0275d8;
+      color: white;
+    }
+    
+    .logout-btn {
+      position: absolute;
+      top: 10px;  
+      right: 10px; 
+      padding: 10px 15px;
+      background-color: #f44336; 
+      color: white; 
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .logout-btn:hover {
+      background-color: #d32f2f; 
+    }
+
+  </style>
+</head>
+<body>
+  <h1>Welcome, <span id="user-name"></span></h1>
+  <p><span id="user-email"></span></p>
+
+  <div>
+    <button onclick="logout()" class="logout-btn">Logout</button>
+  </div>
+
+  <input type="hidden" id="user-email-hidden" />
+
+  <div class="file-list-section">
+    <h3>Accessible Files For Read & Update</h3>
+    <ul id="file-list">
+      <!-- Files will be dynamically populated here -->
+    </ul>
+  </div>
+
+  <div id="error-message" style="color: red;"></div>
+
+  <script>
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      alert('You are not logged in. Redirecting to login page.');
+      window.location.href = '/signin.html';
+    }
+
+    async function fetchUserDetails() {
+      try {
+        const response = await fetch('/api/user/details', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user details');
+        }
+
+        const data = await response.json();
+        setUserDetail(data.user.name, data.user.email);
+      } catch (error) {
+        console.error('Error fetching user details:', error);
+        document.getElementById('error-message').textContent = 'Failed to fetch user details. Please try again.';
+      }
+    }
+
+    function setUserDetail(userName, email) {
+      document.getElementById('user-name').textContent = userName;
+      document.getElementById('user-email').textContent = email;
+      document.getElementById('user-email-hidden').value = email;
+
+      loadAccessibleFiles();
+    }
+
+    async function loadAccessibleFiles() {
+      try {
+        const response = await fetch('/api/user/user-dashboard', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Failed to fetch files: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const files = data.files;
+        const fileList = document.getElementById('file-list');
+        fileList.innerHTML = '';
+
+        if (files.length === 0) {
+          fileList.innerHTML = '<li>No files are accessible right now.</li>';
+          return;
+        }
+
+        files.forEach((file) => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            File: <strong>${file.filename}</strong>
+            <div>
+              <button class="view-btn" onclick="openFile('${file.id}', 'view')">View</button>
+              <button class="edit-btn" onclick="openFile('${file.id}', 'edit')">Edit</button>
+            </div>`;
+          fileList.appendChild(li);
+        });
+      } catch (error) {
+        console.error('Error fetching files:', error.message);
+        document.getElementById('error-message').textContent = 'Failed to fetch files. Please try again.';
+      }
+    }
+
+    /*
+    //Using this function to trigger router handler for view and edit of collaborationService.
+    async function openFile(fileId, mode) {
+      const studentId = document.getElementById('user-email-hidden').value;
+
+      if(!studentId){
+          alert('Student Id is Missing. Please Login first.');
+          return;
+      }
+
+      try {
+        const response = await fetch(`/api/collab/view_file/${fileId}?student_id=${studentId}`, {
+          method: mode === 'view' ? 'GET' : 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: mode === 'edit' ? JSON.stringify({
+            student_id: studentId,
+            sheet_name: 'Sheet1', // Add dynamic sheet_name if needed
+            cell: 'A1',           // Add dynamic cell if needed
+            old_value: 'old data',// Add dynamic old_value if needed
+            new_value: 'new data' // Add dynamic new_value if needed
+          }) : null,
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          alert(data.message || 'Operation successful');
+        } else {
+          throw new Error(data.error || 'Something went wrong');
+        }
+      } catch (error) {
+        console.error(`Error performing ${mode} operation:`, error);
+        document.getElementById('error-message').textContent = `Error: ${error.message}`;
+      }
+    
+    }
+    */
+    async function openFile(fileId, mode) {
+  const studentId = document.getElementById('user-email-hidden').value;
+  if (!studentId) {
+    alert('Student Id is Missing. Please Login first.');
+    return;
+  }
+
+  try {
+    const requestConfig = {
+      method: mode === 'view' ? 'GET' : 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    };
+
+    // Adding body only for the 'edit' mode
+    if (mode === 'edit') {
+      const sheetName = 'Sheet1'; // Dynamically set this value as needed
+      const cell = 'A1';          // Dynamically set this value as needed
+      const oldValue = 'old data'; // Dynamically set this value as needed
+      const newValue = 'new data'; // Dynamically set this value as needed
+
+      requestConfig.body = JSON.stringify({
+        student_id: studentId,
+        sheet_name: sheetName,
+        cell: cell,
+        old_value: oldValue,
+        new_value: newValue
+      });
+    }
+
+    const response = await fetch(`/api/collab/view_file/${fileId}?student_id=${studentId}`, requestConfig);
+    let data;
+
+    try {
+      data = await response.json(); // Try to parse JSON
+    } catch (err) {
+      data = await response.text(); // If JSON parsing fails, get the raw text
+    }
+
+    if (response.ok) {
+    // Check if the response contains a file path
+    if (data.path) {
+        const fileUrl = data.path;  // Make sure your backend is returning the correct URL path
+        
+        // Open the file in a new tab
+        window.open(data.path, '_blank');
+      } else if (data.message) {
+        // Fallback to displaying a success message
+        alert(data.message || 'Operation successful');
+    }    
+    } else {
+      throw new Error(data.error || 'Something went wrong');
+    }
+  }catch (error) {
+    console.error(`Error performing ${mode} operation:`, error);
+    document.getElementById('error-message').textContent = `Error: ${error.message}`;
+  }
+}
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchUserDetails();
+    });
+
+
+
+    //function for siginingout the usr.
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = '/signin.html';
+    }
+  </script>
+</body>
+</html>
+
+
+
+<!--
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #fff;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #4CAF50;
+    }
+
+    .logout-btn {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: block;
+      margin: 20px auto;
+      transition: background-color 0.3s;
+    }
+
+    .logout-btn:hover {
+      background-color: #d32f2f;
+    }
+
+    .file-list-section {
+      margin-top: 30px;
+    }
+
+    .file-list-section h3 {
+      color: #555;
+      text-align: center;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    ul li {
+      background: #f9f9f9;
+      margin: 10px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    ul li a {
+      text-decoration: none;
+      color: #4CAF50;
+      font-weight: bold;
+      transition: color 0.3s;
+    }
+
+    ul li a:hover {
+      color: #388E3C;
+    }
+
+    #error-message {
+      color: red;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome, <span id="user-name"></span></h1>
+    <p style="text-align: center;"><strong id="user-email"></strong></p>
+
+    <button onclick="logout()" class="logout-btn">Logout</button>
+
+    <input type="hidden" id="user-email-hidden" />
+
+    <div class="file-list-section">
+      <h3>Your Accessible Files</h3>
+      <ul id="file-list">
+      </ul>
+    </div>
+
+    <div id="error-message"></div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      alert('You are not logged in. Redirecting to login page.');
+      window.location.href = '/signin.html';
+    } else {
+      console.log('User logged in');
+    }
+
+    function fetchUserDetails() {
+      fetch('/api/user/details', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch user details');
+        return response.json();
+      })
+      .then(data => {
+        console.log('User Details:', data);
+        setUserDetail(data.user.name, data.user.email);
+      })
+      .catch(error => {
+        console.error('Error fetching user details:', error);
+        document.getElementById('error-message').textContent = 'Failed to fetch user details. Please try again.';
+      });
+    }
+
+    function setUserDetail(userName, email) {
+      document.getElementById('user-name').textContent = userName;
+      document.getElementById('user-email').textContent = email;
+      document.getElementById('user-email-hidden').value = email;
+      loadAccessibleFiles();
+    }
+
+    async function loadAccessibleFiles() {
+      try {
+        const response = await fetch('/api/user/user-dashboard', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Failed to fetch files: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const files = data.files;
+        const fileList = document.getElementById('file-list');
+        fileList.innerHTML = '';
+
+        if (files.length === 0) {
+          fileList.innerHTML = '<li>No files are accessible right now.</li>';
+          return;
+        }
+
+        files.forEach(file => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <span>${file.filename}</span>
+            <a href="/download/${file.id}" target="_blank">Download</a>
+          `;
+          fileList.appendChild(li);
+        });
+      } catch (error) {
+        console.error('Error fetching files:', error.message);
+        document.getElementById('error-message').textContent = 'Failed to fetch files. Please try again.';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchUserDetails);
+
+    function logout() {
+      window.location.href = '/user/logout';
+      console.log("Logout Successful!");
+    }
+  </script>
+</body>
+</html>
+
+<!--
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Dashboard</title>
+</head>
+<body>
+  <h1>Welcome, <span id="user-name"></span></h1>
+  <p><span id="user-email"></span></p>
+
+  <div>
+    <button  onclick ="logout()" class = "logout-btn">Logout</button>
+  </div>
+
+  <input type="hidden" id="user-email-hidden" />
+
+  <div class="file-list-section">
+    <h3>Your Accessible Files</h3>
+    <ul id="file-list">
+        //dynamic content will be reflected her
+    </ul>
+  </div>
+
+  <div id="error-message" style="color: red;"></div>
+
+  <script>
+    // JWT-based Authorization: Fetch token from localStorage
+    const token = localStorage.getItem('token');
+
+    // Redirect to login if token is missing
+    if (!token) {
+      alert('You are not logged in. Redirecting to login page.');
+      window.location.href = '/signin.html';
+    }else {
+      console.log('User logged in');
+      // You can optionally verify the token with your backend here
+    }
+
+    // Fetch user details using JWT
+    function fetchUserDetails() {
+      fetch('/api/user/details', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`, // Include JWT token in Authorization header
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch user details');
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('User Details:', data);
+        setUserDetail(data.user.name, data.user.email); // Populate user details dynamically
+      })
+      .catch(error => {
+        console.error('Error fetching user details:', error);
+        document.getElementById('error-message').textContent = 'Failed to fetch user details. Please try again.';
+      });
+    }
+
+    // Populate user details in UI
+    function setUserDetail(userName, email) {
+      document.getElementById('user-name').textContent = userName;
+      document.getElementById('user-email').textContent = email;
+      document.getElementById('user-email-hidden').value = email;
+
+      loadAccessibleFiles();
+    }
+
+
+  // Fetch and display files accessible to the user
+  async function loadAccessibleFiles() {
+    try {
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('User token not found. Please log in again.');
+      }
+
+      const response = await fetch('/api/user/user-dashboard', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Failed to fetch files: ${response.status}`);
+      }
+
+      
+      const data = await response.json(); // Get the response data
+
+      const files = data.files; // Access the 'files' array from the response
+      const fileList = document.getElementById('file-list');
+      fileList.innerHTML = ''; // Clear existing list
+
+      if (files.length === 0) {
+        fileList.innerHTML = '<li>No files are accessible right now.</li>';
+        return;
+      }
+
+      files.forEach(file => {
+        const li = document.createElement('li');
+        li.innerHTML = `File: <strong>${file.filename}</strong>, Uploaded By: <em>${file.uploaded_by}</em> 
+                        <a href="/download/${file.id}" target="_blank">Download</a>`;
+        fileList.appendChild(li);
+      });
+    } catch (error) {
+      console.error('Error fetching files:', error.message);
+      document.getElementById('error-message').textContent = 'Failed to fetch files. Please try again.';
+    }
+  }
+
+    // Initialize page: Fetch user details and files on load
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchUserDetails();
+    });
+
+
+    //function for logout
+    function logout(){
+      //location after hitting logout.
+      window.location.href = '/user/logout';
+      console.log("Logout Succesfull!!");
+    }
+  </script>
+</body>
+</html>
+-->

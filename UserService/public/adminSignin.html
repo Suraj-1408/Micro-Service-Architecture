@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Sign In</title>
+</head>
+<body>
+  <h1>Admin Sign In</h1>
+  <form id="admin-signin-form">
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" required>
+    <br>
+
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required>
+    <br>
+
+    <button type="submit">Sign In</button>
+  </form>
+
+  <script>
+    document.getElementById('admin-signin-form').addEventListener('submit', function(event) {
+      event.preventDefault();
+
+      const formData = {
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      };
+
+      fetch('/admin/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('Admin Login successful!');
+          window.location.href = '/admin/dashboard'; // Redirect to Admin Dashboard
+        } else {
+          alert('Error: ' + data.message);
+        }
+      })
+      .catch(error => {
+        console.error('Error during admin sign in:', error);
+        alert('Error occurred during sign in.');
+      });
+    });
+  </script>
+</body>
+</html>
